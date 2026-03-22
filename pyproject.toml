@@ -1,0 +1,26 @@
+[project]
+name = "bike-availability-forecasting-system"
+version = "0.1.0"
+description = "End-to-end data pipeline and ML system for forecasting bike availability in São Paulo's bike-sharing network."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [
+    { name = "Bruno" },
+]
+keywords = ["gbfs", "bike-sharing", "forecasting", "time-series", "data-engineering"]
+
+[project.urls]
+Repository = "https://github.com/<your-username>/bike-availability-forecasting-system"
+
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
