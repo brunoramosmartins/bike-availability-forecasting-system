@@ -1,0 +1,12 @@
+# Core — data ingestion
+httpx>=0.27.0
+python-dotenv>=1.0.0
+
+# Core — database
+psycopg2-binary>=2.9.9
+
+# Data processing
+pandas>=2.2.0
+
+# Testing
+pytest>=8.0.0
