@@ -14,3 +14,7 @@ matplotlib>=3.8.0
 
 # Testing
 pytest>=8.0.0
+pytest-cov>=5.0.0
+
+# Linting
+ruff>=0.4.0
