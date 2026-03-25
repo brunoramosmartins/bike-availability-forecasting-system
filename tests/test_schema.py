@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from src.storage.schema import SQL_DIR, apply_schema
+from src.storage.schema import apply_schema
 
 
 class TestApplySchema:

@@ -9,7 +9,7 @@ This project builds a continuous data pipeline that ingests high-frequency stati
 ### Key Features
 
 - **Real-time ingestion** — Scheduled collection of GBFS station data every 5 minutes via GitHub Actions
-- **Structured storage** — PostgreSQL (Neon) with raw and processed layers
+- **Structured storage** — PostgreSQL (Neon) with raw tables and a curated **`analytics`** layer for ML and BI
 - **ML forecasting** — From naive baselines to gradient boosting (LightGBM)
 - **Model monitoring** — Drift detection and performance tracking with Evidently AI
 - **Visualization** — Interactive dashboards on Tableau Public
@@ -29,20 +29,24 @@ GitHub Actions (cron: */5 * * * *)
         │
         ▼
   PostgreSQL (Neon)
-  ┌─────────────┬─────────────┐
-  │ raw_status  │ station_info│
-  └──────┬──────┴──────┬──────┘
-         │             │
-    ┌────▼────┐   ┌────▼────┐
-    │   ML    │   │  Tableau │
-    │Pipeline │   │Dashboard│
-    └────┬────┘   └─────────┘
-         │
-    ┌────▼────┐
-    │Monitoring│
-    │Evidently │
-    └─────────┘
+  ┌──────────────────┬────────────────────┐
+  │ raw_station_status│ station_information│   ← raw / ingestion layer
+  └─────────┬────────┴──────────┬─────────┘
+            │                   │
+            └─────────┬─────────┘
+                      ▼
+            ┌─────────────────────┐
+            │  schema: analytics   │   ← curated views + DQ metrics
+            │  station_status_*    │
+            └─────────┬───────────┘
+                      │
+         ┌────────────┼────────────┐
+         ▼            ▼            ▼
+    ML pipeline   Tableau     Monitoring
+   (Phase 4+)   (Phase 8)   (Phase 7+)
 ```
+
+See [docs/analytics/README.md](./docs/analytics/README.md) for grain, ER/layer diagrams (Mermaid), and the data dictionary.
 
 ## Tech Stack
 
@@ -68,7 +72,8 @@ GitHub Actions (cron: */5 * * * *)
 │   └── api/             # FastAPI prediction endpoint
 ├── tests/               # Unit and integration tests
 ├── notebooks/           # Exploratory analysis and model comparison
-├── sql/                 # Database DDL and migrations
+├── sql/                 # Database DDL and migrations (ordered 001_, 002_, …)
+├── docs/analytics/      # Analytics layer docs (ERD, dictionary, DQ)
 ├── config/              # Environment-based configuration
 └── .github/workflows/   # CI and scheduled ingestion
 ```
@@ -106,6 +111,42 @@ cp .env.example .env
 ```bash
 python -m src.ingestion
 ```
+
+Applying migrations is part of that run (all `sql/*.sql` files in lexicographic order).
+
+### Data model and analytics layer (Phase 3)
+
+Raw tables:
+
+- **`raw_station_status`** — append-only snapshots; unique on `(station_id, last_reported)`.
+- **`station_information`** — one row per station (SCD Type 1 upsert from GBFS).
+
+Curated **`analytics`** schema (views):
+
+- **`analytics.station_status_enriched`** — fact grain plus station attributes (join on `station_id`). Primary interface for time-series extracts and feature engineering.
+- **`analytics.station_status_latest`** — one row per station (latest `last_reported`, tie-break `ingestion_timestamp`).
+
+Indexes: composite `(station_id, last_reported DESC)` plus existing single-column indexes (see `sql/002_create_indexes.sql`).
+
+**Data quality:** metric views `analytics.v_dq_*` and a CLI:
+
+```bash
+python -m src.storage.data_quality
+python -m src.storage.data_quality --json
+```
+
+Exit code `0` when all checks pass, `1` otherwise. Full documentation: [docs/analytics/README.md](./docs/analytics/README.md).
+
+### How downstream phases consume this layer
+
+| Phase | Consumption pattern | Benefit |
+|-------|---------------------|---------|
+| **4 — Dataset** | `SELECT … FROM analytics.station_status_enriched WHERE …` (time windows per `station_id`) | Stable column contract, no duplicated join logic in Python; explicit grain for resampling and lags. |
+| **5–6 — Modeling** | Parquet/CSV extracts or direct SQL from the same view | Features and target definitions stay aligned with documented semantics. |
+| **7 — Monitoring** | Compare predictions to actuals joined on `station_id` + time; optional DQ views in scheduled jobs | Shared vocabulary for “what a row means”; DQ metrics reused for operational trust. |
+| **8 — Visualization** | Tableau (or extract) against enriched view or aggregates | One semantic layer for “availability over time” and maps (`lat`/`lon` already on the row). |
+
+**Why it matters:** ingestion owns **raw** tables; **analytics** owns the **contract** everyone else reads. That reduces drift between SQL in notebooks, training code, and dashboards, and centralizes joins and naming. Materialized views can be added later if query cost grows; start with plain views for simplicity.
 
 ## Data Source
 

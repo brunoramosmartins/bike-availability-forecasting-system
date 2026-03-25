@@ -1,6 +1,6 @@
 [project]
 name = "bike-availability-forecasting-system"
-version = "0.1.0"
+version = "0.3.0"
 description = "End-to-end data pipeline and ML system for forecasting bike availability in São Paulo's bike-sharing network."
 readme = "README.md"
 license = { text = "MIT" }
