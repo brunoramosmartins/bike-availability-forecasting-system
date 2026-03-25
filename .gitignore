@@ -32,6 +32,8 @@ desktop.ini
 # Data (generated locally, not tracked)
 data/
 !data/.gitkeep
+!data/samples/
+!data/samples/*.json
 
 # Notebooks checkpoints
 .ipynb_checkpoints/
