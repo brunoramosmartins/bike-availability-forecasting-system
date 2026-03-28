@@ -59,14 +59,10 @@ def load_raw_status(conn: PgConnection, min_days: int = MIN_DAYS) -> pd.DataFram
     valid_stations = span[span >= min_days].index
     n_dropped = len(span) - len(valid_stations)
     if n_dropped > 0:
-        logger.info(
-            "Dropped %d stations with < %d days of data", n_dropped, min_days
-        )
+        logger.info("Dropped %d stations with < %d days of data", n_dropped, min_days)
     df = df[df["station_id"].isin(valid_stations)].copy()
 
-    logger.info(
-        "Loaded %d rows for %d stations", len(df), df["station_id"].nunique()
-    )
+    logger.info("Loaded %d rows for %d stations", len(df), df["station_id"].nunique())
     return df
 
 

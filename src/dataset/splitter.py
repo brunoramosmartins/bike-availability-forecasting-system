@@ -73,8 +73,7 @@ def time_based_split(
     train_only = train[train["timestamp"] < val_cutoff].copy()
 
     logger.info(
-        "Split: train=%d rows [%s → %s], val=%d rows [%s → %s], "
-        "test=%d rows [%s → %s]",
+        "Split: train=%d rows [%s → %s], val=%d rows [%s → %s], test=%d rows [%s → %s]",
         len(train_only),
         timestamps[0],
         val_cutoff,

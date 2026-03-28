@@ -31,9 +31,9 @@ def add_lag_features(df: pd.DataFrame) -> pd.DataFrame:
         DataFrame with lag columns added.
     """
     for lag in LAG_PERIODS:
-        df[f"bikes_lag_{lag}"] = df.groupby("station_id")[
-            "num_bikes_available"
-        ].shift(lag)
+        df[f"bikes_lag_{lag}"] = df.groupby("station_id")["num_bikes_available"].shift(
+            lag
+        )
     return df
 
 

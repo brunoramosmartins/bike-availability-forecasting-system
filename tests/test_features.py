@@ -94,9 +94,7 @@ class TestAddRollingFeatures:
 
     def test_rolling_uses_past_only(self) -> None:
         """Rolling window should not include the current row (shift(1))."""
-        df = _make_resampled_df(n_points=20).sort_values(
-            ["station_id", "timestamp"]
-        )
+        df = _make_resampled_df(n_points=20).sort_values(["station_id", "timestamp"])
         result = add_rolling_features(df.copy())
         # First 5 rows should have NaN rolling mean (shift + 4-period window)
         assert pd.isna(result["bikes_rolling_mean_1h"].iloc[0])
@@ -122,9 +120,7 @@ class TestAddTemporalFeatures:
         df = _make_resampled_df()
         result = add_temporal_features(df.copy())
         expected_hour = pd.to_datetime(result["timestamp"]).dt.hour
-        pd.testing.assert_series_equal(
-            result["hour"], expected_hour, check_names=False
-        )
+        pd.testing.assert_series_equal(result["hour"], expected_hour, check_names=False)
 
     def test_is_weekend_values(self) -> None:
         df = _make_resampled_df()

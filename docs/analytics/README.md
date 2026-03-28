@@ -35,11 +35,11 @@ flowchart LR
 ```mermaid
 erDiagram
   RAW_STATION_STATUS {
-    varchar station_id PK_FK
-    timestamptz last_reported PK
+    varchar station_id PK
+    varchar last_reported PK
     int num_bikes_available
     int num_docks_available
-    timestamptz ingestion_timestamp
+    varchar ingestion_timestamp
   }
 
   STATION_INFORMATION {
@@ -53,15 +53,15 @@ erDiagram
   STATION_INFORMATION ||--o{ RAW_STATION_STATUS : "station_id"
 
   ANALYTICS_ENRICHED {
-    varchar station_id
-    timestamptz last_reported
+    varchar station_id FK
+    varchar last_reported FK
     int num_bikes_available
     text name
     int capacity
   }
 
-  RAW_STATION_STATUS ||--|| ANALYTICS_ENRICHED : "view"
-  STATION_INFORMATION ||--|| ANALYTICS_ENRICHED : "view"
+  RAW_STATION_STATUS ||--|| ANALYTICS_ENRICHED : "joins"
+  STATION_INFORMATION ||--|| ANALYTICS_ENRICHED : "joins"
 ```
 
 ## Grain and semantics

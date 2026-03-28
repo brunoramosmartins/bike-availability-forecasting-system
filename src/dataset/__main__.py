@@ -99,8 +99,7 @@ def run() -> None:
 
     elapsed = time.monotonic() - start
     logger.info(
-        "Dataset pipeline complete in %.2fs — "
-        "train=%d, val=%d, test=%d, features=%d",
+        "Dataset pipeline complete in %.2fs — train=%d, val=%d, test=%d, features=%d",
         elapsed,
         len(split.train),
         len(split.val),
