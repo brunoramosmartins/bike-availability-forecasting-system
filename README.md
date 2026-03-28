@@ -1,5 +1,11 @@
 # Bike Availability Forecasting System
 
+[![CI](https://github.com/brunoramosmartins/bike-availability-forecasting-system/actions/workflows/ci.yml/badge.svg)](https://github.com/brunoramosmartins/bike-availability-forecasting-system/actions/workflows/ci.yml)
+[![Ingestion](https://github.com/brunoramosmartins/bike-availability-forecasting-system/actions/workflows/ingest.yml/badge.svg)](https://github.com/brunoramosmartins/bike-availability-forecasting-system/actions/workflows/ingest.yml)
+![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
+![PostgreSQL](https://img.shields.io/badge/database-PostgreSQL%20(Neon)-336791)
+![License: MIT](https://img.shields.io/badge/license-MIT-green)
+
 An end-to-end data engineering and machine learning system that forecasts bike availability in urban bike-sharing stations using real-time [GBFS](https://gbfs.org/) data from **Bike Itaú / Bike Sampa** (São Paulo, Brazil).
 
 ## Overview
@@ -10,10 +16,27 @@ This project builds a continuous data pipeline that ingests high-frequency stati
 
 - **Real-time ingestion** — Scheduled collection of GBFS station data every 5 minutes via GitHub Actions
 - **Structured storage** — PostgreSQL (Neon) with raw tables and a curated **`analytics`** layer for ML and BI
-- **ML forecasting** — From naive baselines to gradient boosting (LightGBM)
-- **Model monitoring** — Drift detection and performance tracking with Evidently AI
-- **Visualization** — Interactive dashboards on Tableau Public
-- **Prediction API** — FastAPI endpoint for real-time availability forecasts
+- **Data quality** — Automated DQ metric views and CLI checks (`python -m src.storage.data_quality`)
+- **Feature engineering** — Lag, rolling, temporal, and station features with leakage-free pipeline
+- **ML forecasting** — From naive baselines to gradient boosting (LightGBM) *(planned)*
+- **Model monitoring** — Drift detection and performance tracking with Evidently AI *(planned)*
+- **Visualization** — Interactive dashboards on Tableau Public *(planned)*
+- **Prediction API** — FastAPI endpoint for real-time availability forecasts *(planned)*
+
+### Project Progress
+
+| Phase | Status | Description |
+|-------|--------|-------------|
+| 0 — Repository Bootstrap | :white_check_mark: Done | Project scaffold, governance files, CI/CD |
+| 1 — Data Reconnaissance | :white_check_mark: Done | GBFS feed exploration, schema docs, station map |
+| 2 — Data Ingestion Pipeline | :white_check_mark: Done | Fetch → parse → load pipeline, GitHub Actions cron |
+| 3 — Data Modeling & Storage | :white_check_mark: Done | Analytics views, indexes, DQ metrics |
+| 4 — Dataset Construction | :white_check_mark: Done | Feature engineering, temporal splits, Parquet export |
+| 5 — Baseline Modeling | :hourglass: Next | Naive + Linear Regression baselines |
+| 6 — Advanced Modeling | :construction: Planned | LightGBM with hyperparameter tuning |
+| 7 — Monitoring & Drift | :construction: Planned | Evidently AI reports, alerting thresholds |
+| 8 — Visualization | :construction: Planned | Tableau Public dashboards |
+| 9 — Extensions | :construction: Planned | FastAPI endpoint, anomaly detection |
 
 ## Architecture
 
@@ -30,20 +53,28 @@ GitHub Actions (cron: */5 * * * *)
         ▼
   PostgreSQL (Neon)
   ┌──────────────────┬────────────────────┐
-  │ raw_station_status│ station_information│   ← raw / ingestion layer
+  │ raw_station_status│ station_information│   ← Raw (Bronze)
   └─────────┬────────┴──────────┬─────────┘
             │                   │
             └─────────┬─────────┘
                       ▼
             ┌─────────────────────┐
-            │  schema: analytics   │   ← curated views + DQ metrics
+            │  schema: analytics   │   ← Curated (Silver)
             │  station_status_*    │
+            │  v_dq_* metrics      │
+            └─────────┬───────────┘
+                      │
+                      ▼
+            ┌─────────────────────┐
+            │  Dataset Pipeline    │   ← Features (Gold)
+            │  resample → features │
+            │  → split → Parquet   │
             └─────────┬───────────┘
                       │
          ┌────────────┼────────────┐
          ▼            ▼            ▼
-    ML pipeline   Tableau     Monitoring
-   (Phase 4+)   (Phase 8)   (Phase 7+)
+    ML Models     Tableau     Monitoring
+   (Phase 5+)   (Phase 8)   (Phase 7+)
 ```
 
 See [docs/analytics/README.md](./docs/analytics/README.md) for grain, ER/layer diagrams (Mermaid), and the data dictionary.
@@ -64,18 +95,28 @@ See [docs/analytics/README.md](./docs/analytics/README.md) for grain, ER/layer d
 
 ```
 ├── src/
-│   ├── ingestion/       # GBFS data collection pipeline
-│   ├── storage/         # Database connection and schema
-│   ├── dataset/         # Feature engineering and splitting
-│   ├── model/           # ML training, evaluation, prediction
-│   ├── monitoring/      # Drift detection and reporting
-│   └── api/             # FastAPI prediction endpoint
-├── tests/               # Unit and integration tests
-├── notebooks/           # Exploratory analysis and model comparison
-├── sql/                 # Database DDL and migrations (ordered 001_, 002_, …)
-├── docs/analytics/      # Analytics layer docs (ERD, dictionary, DQ)
-├── config/              # Environment-based configuration
-└── .github/workflows/   # CI and scheduled ingestion
+│   ├── ingestion/       # GBFS fetch → parse → load pipeline
+│   ├── storage/         # DB connection, schema, data quality CLI
+│   ├── dataset/         # Resampling, feature engineering, splitting
+│   ├── model/           # ML training, evaluation, prediction (Phase 5+)
+│   ├── monitoring/      # Drift detection and reporting (Phase 7+)
+│   └── api/             # FastAPI prediction endpoint (Phase 9)
+├── tests/               # 75 unit tests (pytest)
+├── notebooks/
+│   ├── 01_data_exploration.ipynb   # GBFS schema, station map (Folium)
+│   └── 02_feature_analysis.ipynb   # Feature distributions, leakage check
+├── sql/                 # DDL migrations (001_ → 004_)
+│   ├── 001_create_tables.sql       # raw_station_status, station_information
+│   ├── 002_create_indexes.sql      # Composite index for time-series
+│   ├── 003_analytics_layer.sql     # analytics.station_status_enriched/latest
+│   └── 004_data_quality_views.sql  # analytics.v_dq_* metric views
+├── data/
+│   ├── samples/         # Saved GBFS API responses (Phase 1)
+│   └── processed/       # train/val/test Parquet files (Phase 4)
+├── docs/analytics/      # ER diagrams, data dictionary, DQ glossary
+└── .github/workflows/
+    ├── ci.yml           # Lint (ruff) + tests (pytest) on PRs
+    └── ingest.yml       # Scheduled ingestion every 5 minutes
 ```
 
 ## Getting Started
@@ -90,7 +131,7 @@ See [docs/analytics/README.md](./docs/analytics/README.md) for grain, ER/layer d
 
 ```bash
 # Clone the repository
-git clone https://github.com/<your-username>/bike-availability-forecasting-system.git
+git clone https://github.com/brunoramosmartins/bike-availability-forecasting-system.git
 cd bike-availability-forecasting-system
 
 # Create and activate virtual environment
@@ -147,6 +188,30 @@ Exit code `0` when all checks pass, `1` otherwise. Full documentation: [docs/ana
 | **8 — Visualization** | Tableau (or extract) against enriched view or aggregates | One semantic layer for “availability over time” and maps (`lat`/`lon` already on the row). |
 
 **Why it matters:** ingestion owns **raw** tables; **analytics** owns the **contract** everyone else reads. That reduces drift between SQL in notebooks, training code, and dashboards, and centralizes joins and naming. Materialized views can be added later if query cost grows; start with plain views for simplicity.
+
+### Dataset construction pipeline (Phase 4)
+
+The dataset module reads from `analytics.station_status_enriched`, resamples to 15-minute intervals, engineers features, and exports train/val/test splits as Parquet files.
+
+```bash
+python -m src.dataset
+```
+
+**Features (15 columns)**:
+
+| Group | Features |
+|-------|----------|
+| Current | `num_bikes_available`, `num_docks_available` |
+| Lag (t-15 to t-60 min) | `bikes_lag_1`, `bikes_lag_2`, `bikes_lag_3`, `bikes_lag_4` |
+| Rolling (1h window) | `bikes_rolling_mean_1h`, `bikes_rolling_std_1h` |
+| Temporal | `hour`, `weekday`, `is_weekend`, `month` |
+| Station | `capacity`, `lat`, `lon` |
+
+**Target**: `y` = `num_bikes_available` at t+15 min
+
+**Split**: time-based (train 80%, validation 10%, test 20%) — no shuffle, no temporal overlap.
+
+**Output**: `data/processed/train.parquet`, `val.parquet`, `test.parquet`
 
 ## Data Source
 
