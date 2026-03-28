@@ -60,8 +60,18 @@ erDiagram
     int capacity
   }
 
+  ANALYTICS_LATEST {
+    varchar station_id FK
+    varchar last_reported
+    int num_bikes_available
+    text name
+    int capacity
+  }
+
   RAW_STATION_STATUS ||--|| ANALYTICS_ENRICHED : "joins"
   STATION_INFORMATION ||--|| ANALYTICS_ENRICHED : "joins"
+  RAW_STATION_STATUS ||--|| ANALYTICS_LATEST : "latest row"
+  STATION_INFORMATION ||--|| ANALYTICS_LATEST : "latest row"
 ```
 
 ## Grain and semantics
