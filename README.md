@@ -47,8 +47,8 @@ This project builds a continuous data pipeline that ingests high-frequency stati
 | 3 — Data Modeling & Storage | :white_check_mark: Done | Analytics views, indexes, DQ metrics |
 | 4 — Dataset Construction | :white_check_mark: Done | Feature engineering, temporal splits, Parquet export |
 | 5 — Baseline Modeling | :white_check_mark: Done | Naive + Linear Regression baselines, evaluation metrics |
-| 6 — Advanced Modeling | :hourglass: In Progress | LightGBM + XGBoost with Optuna tuning, SHAP analysis |
-| 7 — Monitoring & Drift | :construction: Planned | Evidently AI reports, alerting thresholds |
+| 6 — Advanced Modeling | :white_check_mark: Done | LightGBM + XGBoost with Optuna tuning, SHAP analysis |
+| 7 — Monitoring & Drift | :hourglass: In Progress | Drift detection, Evidently AI reports, alerting |
 | 8 — Visualization | :construction: Planned | Interactive dashboards |
 | 9 — Extensions | :construction: Planned | FastAPI endpoint, anomaly detection |
 
@@ -110,7 +110,7 @@ See [docs/analytics/README.md](./docs/analytics/README.md) for grain, ER/layer d
 | Modeling | scikit-learn, LightGBM, XGBoost |
 | Tuning | Optuna (TPE sampler, 50 trials) |
 | Interpretability | SHAP (TreeExplainer) |
-| Monitoring | Evidently AI *(planned)* |
+| Monitoring | Evidently AI, scipy (KS test) |
 | Visualization | Tableau Public *(planned)* |
 | API | FastAPI *(planned)* |
 
@@ -126,15 +126,19 @@ See [docs/analytics/README.md](./docs/analytics/README.md) for grain, ER/layer d
 │   │   ├── advanced.py  # LightGBMModel, XGBoostModel, tune_lightgbm()
 │   │   ├── evaluate.py  # compute_metrics, per_station/hour breakdowns
 │   │   └── __main__.py  # CLI: python -m src.model
-│   ├── monitoring/      # Drift detection and reporting (Phase 7+)
+│   ├── monitoring/      # Drift detection, Evidently reports, prediction store
+│   │   ├── drift.py     # rolling_mae, PSI, KS test, analyze_drift()
+│   │   ├── store.py     # save/load predictions, backfill actuals
+│   │   ├── reporter.py  # Evidently AI HTML report generation
+│   │   └── __main__.py  # CLI: python -m src.monitoring
 │   └── api/             # FastAPI prediction endpoint (Phase 9)
-├── tests/               # 108 unit tests (pytest, 96% coverage)
+├── tests/               # 130+ unit tests (pytest, 96% coverage)
 ├── notebooks/
 │   ├── 01_data_exploration.ipynb   # GBFS schema, station map (Folium)
 │   ├── 02_feature_analysis.ipynb   # Feature distributions, leakage check
 │   ├── 03_model_comparison.ipynb   # Baseline model comparison
 │   └── 04_advanced_models.ipynb    # LightGBM/XGBoost, SHAP analysis
-├── sql/                 # DDL migrations (001_ -> 004_)
+├── sql/                 # DDL migrations (001_ -> 005_)
 │   ├── 001_create_tables.sql       # raw_station_status, station_information
 │   ├── 002_create_indexes.sql      # Composite index for time-series
 │   ├── 003_analytics_layer.sql     # analytics.station_status_enriched/latest
@@ -277,6 +281,35 @@ python -m src.model
 | `lgbm_best_params.json` | Best hyperparameters from Optuna |
 | `lgbm_feature_importance.json` | Feature importance (gain) |
 | `naive.joblib`, `lr.joblib`, `lgbm.joblib`, `xgb.joblib` | Serialized models |
+
+### Monitoring and drift detection (Phase 7)
+
+The monitoring module tracks model performance over time, detects data drift, and generates Evidently AI reports.
+
+```bash
+# Run drift analysis (requires predictions in the database)
+python -m src.monitoring --model lgbm --json
+
+# Generate Evidently HTML reports
+python -m src.monitoring --model lgbm --report
+
+# Look back 14 days instead of default 7
+python -m src.monitoring --model lgbm --since 14
+```
+
+**Drift detection methods:**
+
+| Method | Description | Alert threshold |
+|--------|-------------|-----------------|
+| Rolling MAE | Sliding window MAE over time (24h window) | MAE > baseline * 1.20 |
+| PSI | Population Stability Index between predicted/actual | PSI > 0.2 = significant |
+| KS Test | Kolmogorov-Smirnov two-sample test | p-value < 0.05 |
+
+**Exit codes:** `0` = no alert, `1` = MAE degradation > 20%. This enables integration with cron/CI for automated retraining triggers.
+
+**Predictions table** (`analytics.predictions`): stores model predictions alongside actuals for retroactive comparison. Schema in `sql/005_predictions_table.sql`.
+
+**Evidently reports** are saved to `reports/` (gitignored). Includes data drift and regression performance presets.
 
 ## Data Source
 
