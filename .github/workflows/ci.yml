@@ -23,7 +23,7 @@ jobs:
           cache: 'pip'
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install -e .[dev]
 
       - name: Run ruff linter
         run: ruff check src/ tests/
@@ -45,7 +45,7 @@ jobs:
           cache: 'pip'
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install -e .[dev]
 
       - name: Run tests with coverage
         run: pytest --cov=src --cov-report=term-missing --cov-fail-under=80
