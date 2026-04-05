@@ -1,6 +1,6 @@
 [project]
 name = "bike-availability-forecasting-system"
-version = "0.3.0"
+version = "0.4.0"
 description = "End-to-end data pipeline and ML system for forecasting bike availability in São Paulo's bike-sharing network."
 readme = "README.md"
 license = { text = "MIT" }
@@ -18,6 +18,10 @@ dependencies = [
     "pyarrow>=15.0.0",
     "scikit-learn>=1.4.0",
     "joblib>=1.3.0",
+    "lightgbm>=4.0.0",
+    "xgboost>=2.0.0",
+    "optuna>=3.5.0",
+    "shap>=0.44.0",
 ]
 
 [project.optional-dependencies]
@@ -44,6 +48,9 @@ include = ["src*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+
+[tool.coverage.run]
+omit = ["src/*/__main__.py"]
 
 [tool.ruff]
 target-version = "py310"
