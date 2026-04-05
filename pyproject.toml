@@ -1,6 +1,6 @@
 [project]
 name = "bike-availability-forecasting-system"
-version = "0.4.0"
+version = "0.5.0"
 description = "End-to-end data pipeline and ML system for forecasting bike availability in São Paulo's bike-sharing network."
 readme = "README.md"
 license = { text = "MIT" }
@@ -22,6 +22,8 @@ dependencies = [
     "xgboost>=2.0.0",
     "optuna>=3.5.0",
     "shap>=0.44.0",
+    "evidently>=0.4.0",
+    "scipy>=1.12.0",
 ]
 
 [project.optional-dependencies]
