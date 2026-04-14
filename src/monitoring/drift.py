@@ -191,6 +191,90 @@ class DriftReport:
         }
 
 
+# -------------------------------------------------------------------------
+# Per-feature drift
+# -------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class FeatureDriftResult:
+    """Drift metrics for a single feature."""
+
+    feature: str
+    psi: float
+    ks_statistic: float
+    ks_p_value: float
+    drifted: bool
+
+
+def compute_feature_drift(
+    reference: pd.DataFrame,
+    current: pd.DataFrame,
+    features: list[str],
+    *,
+    psi_threshold: float = 0.2,
+    ks_alpha: float = 0.05,
+) -> list[FeatureDriftResult]:
+    """Compute PSI and KS drift for each feature individually.
+
+    A feature is flagged as drifted when **either** PSI > *psi_threshold*
+    **or** the KS test rejects at *ks_alpha*.
+
+    Parameters
+    ----------
+    reference, current
+        DataFrames with at least the columns listed in *features*.
+    features
+        Column names to evaluate.
+    psi_threshold
+        PSI value above which a feature is considered drifted.
+    ks_alpha
+        Significance level for the KS test.
+
+    Returns
+    -------
+    list[FeatureDriftResult]
+        One entry per feature, sorted by PSI descending (highest drift first).
+    """
+    results: list[FeatureDriftResult] = []
+    for feat in features:
+        ref_vals = reference[feat].dropna().values
+        cur_vals = current[feat].dropna().values
+
+        if len(ref_vals) < 2 or len(cur_vals) < 2:
+            continue
+
+        psi = compute_psi(ref_vals, cur_vals)
+        ks = compute_ks_test(ref_vals, cur_vals, alpha=ks_alpha)
+
+        results.append(
+            FeatureDriftResult(
+                feature=feat,
+                psi=psi,
+                ks_statistic=ks.statistic,
+                ks_p_value=ks.p_value,
+                drifted=bool(psi > psi_threshold or ks.drifted),
+            )
+        )
+
+    results.sort(key=lambda r: r.psi, reverse=True)
+    return results
+
+
+def compute_drift_score(
+    drift_results: list[FeatureDriftResult],
+) -> float:
+    """Aggregated drift score: fraction of features flagged as drifted.
+
+    Returns a value between 0.0 (no drift) and 1.0 (all features drifted).
+    Returns 0.0 if *drift_results* is empty.
+    """
+    if not drift_results:
+        return 0.0
+    n_drifted = sum(1 for r in drift_results if r.drifted)
+    return n_drifted / len(drift_results)
+
+
 MIN_PREDICTIONS = 96  # at least 24h of data at 15-min intervals
 
 

@@ -7,8 +7,11 @@ import pandas as pd
 
 from src.monitoring.drift import (
     DriftReport,
+    FeatureDriftResult,
     analyze_drift,
     check_mae_alert,
+    compute_drift_score,
+    compute_feature_drift,
     compute_ks_test,
     compute_psi,
     rolling_mae,
@@ -199,3 +202,81 @@ class TestAnalyzeDrift:
         report = analyze_drift(df, baseline_mae=10.0, model_name="lgbm")
         assert report is not None
         assert report.mae_alert is False
+
+
+# ---------------------------------------------------------------------------
+# compute_feature_drift
+# ---------------------------------------------------------------------------
+
+
+class TestComputeFeatureDrift:
+    """Tests for compute_feature_drift()."""
+
+    def test_returns_list_of_results(self) -> None:
+        rng = np.random.default_rng(42)
+        ref = pd.DataFrame({"a": rng.normal(0, 1, 200), "b": rng.normal(5, 1, 200)})
+        cur = pd.DataFrame({"a": rng.normal(0, 1, 200), "b": rng.normal(5, 1, 200)})
+        results = compute_feature_drift(ref, cur, ["a", "b"])
+        assert len(results) == 2
+        assert all(isinstance(r, FeatureDriftResult) for r in results)
+
+    def test_sorted_by_psi_descending(self) -> None:
+        rng = np.random.default_rng(42)
+        ref = pd.DataFrame({"a": rng.normal(0, 1, 200), "b": rng.normal(5, 1, 200)})
+        # Shift feature "b" significantly
+        cur = pd.DataFrame({"a": rng.normal(0, 1, 200), "b": rng.normal(50, 1, 200)})
+        results = compute_feature_drift(ref, cur, ["a", "b"])
+        assert results[0].psi >= results[1].psi
+
+    def test_detects_drift_on_shifted_feature(self) -> None:
+        rng = np.random.default_rng(42)
+        ref = pd.DataFrame({"x": rng.normal(0, 1, 500)})
+        cur = pd.DataFrame({"x": rng.normal(10, 1, 500)})
+        results = compute_feature_drift(ref, cur, ["x"])
+        assert results[0].drifted is True
+
+    def test_no_drift_on_same_distribution(self) -> None:
+        rng = np.random.default_rng(42)
+        ref = pd.DataFrame({"x": rng.normal(0, 1, 500)})
+        cur = pd.DataFrame({"x": rng.normal(0, 1, 500)})
+        results = compute_feature_drift(ref, cur, ["x"])
+        assert results[0].drifted is False
+
+    def test_empty_when_insufficient_data(self) -> None:
+        ref = pd.DataFrame({"x": [1.0]})
+        cur = pd.DataFrame({"x": [2.0]})
+        results = compute_feature_drift(ref, cur, ["x"])
+        assert results == []
+
+
+# ---------------------------------------------------------------------------
+# compute_drift_score
+# ---------------------------------------------------------------------------
+
+
+class TestComputeDriftScore:
+    """Tests for compute_drift_score()."""
+
+    def test_all_drifted(self) -> None:
+        results = [
+            FeatureDriftResult("a", 0.3, 0.5, 0.001, True),
+            FeatureDriftResult("b", 0.4, 0.6, 0.001, True),
+        ]
+        assert compute_drift_score(results) == 1.0
+
+    def test_none_drifted(self) -> None:
+        results = [
+            FeatureDriftResult("a", 0.01, 0.1, 0.5, False),
+            FeatureDriftResult("b", 0.02, 0.1, 0.6, False),
+        ]
+        assert compute_drift_score(results) == 0.0
+
+    def test_partial_drift(self) -> None:
+        results = [
+            FeatureDriftResult("a", 0.3, 0.5, 0.001, True),
+            FeatureDriftResult("b", 0.01, 0.1, 0.5, False),
+        ]
+        assert compute_drift_score(results) == 0.5
+
+    def test_empty_returns_zero(self) -> None:
+        assert compute_drift_score([]) == 0.0

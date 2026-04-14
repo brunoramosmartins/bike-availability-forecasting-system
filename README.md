@@ -21,8 +21,8 @@ This project builds a continuous data pipeline that ingests high-frequency stati
 - **Feature engineering** — Lag, rolling, temporal, and station features with leakage-free pipeline
 - **Baseline models** — Naive (last known value) and Linear Regression establishing a performance floor
 - **Advanced models** — LightGBM and XGBoost with Optuna hyperparameter tuning and SHAP interpretability
-- **Model monitoring** — Drift detection and performance tracking with Evidently AI *(planned)*
-- **Visualization** — Interactive dashboards *(planned)*
+- **Model monitoring** — Drift detection and performance tracking with Evidently AI
+- **Visualization** — Interactive Streamlit dashboard with Plotly charts (availability timeline, station heatmap, peak hours, model performance)
 - **Prediction API** — FastAPI endpoint for real-time availability forecasts *(planned)*
 
 ### Model Performance
@@ -48,8 +48,8 @@ This project builds a continuous data pipeline that ingests high-frequency stati
 | 4 — Dataset Construction | :white_check_mark: Done | Feature engineering, temporal splits, Parquet export |
 | 5 — Baseline Modeling | :white_check_mark: Done | Naive + Linear Regression baselines, evaluation metrics |
 | 6 — Advanced Modeling | :white_check_mark: Done | LightGBM + XGBoost with Optuna tuning, SHAP analysis |
-| 7 — Monitoring & Drift | :hourglass: In Progress | Drift detection, Evidently AI reports, alerting |
-| 8 — Visualization | :construction: Planned | Interactive dashboards |
+| 7 — Monitoring & Drift | :white_check_mark: Done | Drift detection, Evidently AI reports, alerting |
+| 8 — Visualization | :white_check_mark: Done | Streamlit dashboard with Plotly charts |
 | 9 — Extensions | :construction: Planned | FastAPI endpoint, anomaly detection |
 
 ## Architecture
@@ -111,7 +111,7 @@ See [docs/analytics/README.md](./docs/analytics/README.md) for grain, ER/layer d
 | Tuning | Optuna (TPE sampler, 50 trials) |
 | Interpretability | SHAP (TreeExplainer) |
 | Monitoring | Evidently AI, scipy (KS test) |
-| Visualization | Tableau Public *(planned)* |
+| Visualization | Streamlit, Plotly, Tableau Public *(planned)* |
 | API | FastAPI *(planned)* |
 
 ## Project Structure
@@ -131,8 +131,12 @@ See [docs/analytics/README.md](./docs/analytics/README.md) for grain, ER/layer d
 │   │   ├── store.py     # save/load predictions, backfill actuals
 │   │   ├── reporter.py  # Evidently AI HTML report generation
 │   │   └── __main__.py  # CLI: python -m src.monitoring
+│   ├── dashboard/       # Streamlit interactive dashboard
+│   │   ├── data.py      # Pure data helpers (loading, filtering, aggregation)
+│   │   ├── app.py       # Multi-page entry point: streamlit run src/dashboard/app.py
+│   │   └── views/       # availability, heatmap, peak_hours, performance, drift_monitor
 │   └── api/             # FastAPI prediction endpoint (Phase 9)
-├── tests/               # 130+ unit tests (pytest, 96% coverage)
+├── tests/               # 145+ unit tests (pytest, 96% coverage)
 ├── notebooks/
 │   ├── 01_data_exploration.ipynb   # GBFS schema, station map (Folium)
 │   ├── 02_feature_analysis.ipynb   # Feature distributions, leakage check
@@ -194,6 +198,9 @@ python -m src.model
 
 # 4. Run data quality checks
 python -m src.storage.data_quality --json
+
+# 5. Launch the interactive dashboard
+streamlit run src/dashboard/app.py
 ```
 
 ### Data model and analytics layer (Phase 3)
@@ -310,6 +317,25 @@ python -m src.monitoring --model lgbm --since 14
 **Predictions table** (`analytics.predictions`): stores model predictions alongside actuals for retroactive comparison. Schema in `sql/005_predictions_table.sql`.
 
 **Evidently reports** are saved to `reports/` (gitignored). Includes data drift and regression performance presets.
+
+### Interactive dashboard (Phase 8)
+
+A Streamlit multi-page dashboard for exploring data and model results interactively:
+
+```bash
+streamlit run src/dashboard/app.py
+```
+
+**Pages:**
+
+| Page | Description |
+|------|-------------|
+| Availability Timeline | Line chart of bike availability per station with date range filter |
+| Station Heatmap | Geographic scatter map (OpenStreetMap) with hour-of-day slider |
+| Peak Usage Hours | Weekday vs weekend grouped bar chart + weekday x hour heatmap |
+| Model Performance | Metrics comparison table, actual vs predicted scatter, error distribution, per-hour MAE, feature importance |
+
+All data transformation logic lives in `src/dashboard/data.py` (pure functions, no Streamlit dependency) and is fully unit-tested. Caching is applied at the app layer via `@st.cache_data`.
 
 ## Data Source
 

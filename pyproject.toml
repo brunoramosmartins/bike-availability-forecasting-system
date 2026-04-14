@@ -1,6 +1,6 @@
 [project]
 name = "bike-availability-forecasting-system"
-version = "0.5.0"
+version = "0.6.0"
 description = "End-to-end data pipeline and ML system for forecasting bike availability in São Paulo's bike-sharing network."
 readme = "README.md"
 license = { text = "MIT" }
@@ -24,6 +24,8 @@ dependencies = [
     "shap>=0.44.0",
     "evidently>=0.4.0",
     "scipy>=1.12.0",
+    "streamlit>=1.32.0",
+    "plotly>=5.18.0",
 ]
 
 [project.optional-dependencies]
@@ -52,7 +54,7 @@ testpaths = ["tests"]
 pythonpath = ["."]
 
 [tool.coverage.run]
-omit = ["src/*/__main__.py"]
+omit = ["src/*/__main__.py", "src/dashboard/app.py", "src/dashboard/views/*"]
 
 [tool.ruff]
 target-version = "py310"
