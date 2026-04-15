@@ -59,6 +59,7 @@ page = st.sidebar.radio(
         "Peak Usage Hours",
         "Model Performance",
         "Drift Monitor",
+        "Anomaly Detection",
     ],
     index=0,
 )
@@ -110,3 +111,8 @@ elif page == "Drift Monitor":
         metrics=metrics,
         models_dir=PROCESSED_DIR,
     )
+
+elif page == "Anomaly Detection":
+    from src.dashboard.views.anomalies import render
+
+    render(df, station_names)

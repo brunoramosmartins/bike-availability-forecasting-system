@@ -347,6 +347,7 @@ streamlit run src/dashboard/app.py
 | Peak Usage Hours | Weekday vs weekend grouped bar chart + weekday x hour heatmap |
 | Model Performance | Metrics comparison table, actual vs predicted scatter, error distribution, per-hour MAE, feature importance |
 | Drift Monitor | 3-layer drift monitoring: executive (drift gauge + rolling MAE), analytical (feature ranking by PSI), diagnostic (per-feature distribution overlay) |
+| Anomaly Detection | Stuck station detection + Isolation Forest outliers with interactive map, activity scatter, and score distribution |
 
 All data transformation logic lives in `src/dashboard/data.py` (pure functions, no Streamlit dependency) and is fully unit-tested. Caching is applied at the app layer via `@st.cache_data`.
 
@@ -408,6 +409,27 @@ This project uses the public [GBFS feed](https://gbfs.org/) from **Bike Itau (Bi
 - **~5,680 vehicles** (bikes, e-bikes, and scooters)
 - **No authentication required** — open data
 - **30-second refresh rate**
+
+## Known Limitations & Next Steps
+
+This project was developed as a portfolio piece demonstrating the full ML lifecycle. During analysis, the following insights were identified:
+
+### Feature Dominance
+
+`num_bikes_available` (the current value) dominates feature importance (~1000x more than any other feature). Since the target is `y = bikes at t+15 min`, and **89% of 15-minute intervals show no change**, the model effectively learns an identity function. This is reflected in the Naive Baseline achieving R²=0.957.
+
+### Planned Improvements (v1.1)
+
+| Improvement | Impact | Description |
+|-------------|--------|-------------|
+| **Increase prediction horizon** | High | Predict at t+1h or t+2h instead of t+15 min — harder problem, more operationally useful |
+| **Remove current value from features** | High | Drop `num_bikes_available` from features, forcing the model to learn from lags and temporal patterns |
+| **Binary classification** | Medium | Predict `P(bikes=0)` in 30 min — actionable for rebalancing alerts |
+| **Predict demand (delta)** | Medium | Target `y = bikes(t+1h) - bikes(t)` — focuses on change, not level |
+| **Live data integration** | Medium | Dashboard reads from PostgreSQL directly instead of static Parquet |
+| **Automated retraining** | Low | GitHub Action to periodically re-run dataset + model pipeline |
+
+These insights demonstrate the iterative nature of ML development: identifying when a model is "too easy" is as important as building the initial pipeline.
 
 ## Contributing
 
