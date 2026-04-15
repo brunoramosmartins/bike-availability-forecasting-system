@@ -11,7 +11,7 @@ An end-to-end data engineering and machine learning system that forecasts bike a
 
 ## Overview
 
-This project builds a continuous data pipeline that ingests high-frequency station data, constructs a time-series dataset, and trains predictive models to estimate future bike availability (t+15 min). It demonstrates the full ML lifecycle: ingestion, storage, feature engineering, modeling, evaluation, and (planned) deployment.
+This project builds a continuous data pipeline that ingests high-frequency station data, constructs a time-series dataset, and trains predictive models to estimate future bike availability (t+15 min). It demonstrates the full ML lifecycle: ingestion, storage, feature engineering, modeling, evaluation, monitoring, visualization, and deployment.
 
 ### Key Features
 
@@ -23,7 +23,8 @@ This project builds a continuous data pipeline that ingests high-frequency stati
 - **Advanced models** — LightGBM and XGBoost with Optuna hyperparameter tuning and SHAP interpretability
 - **Model monitoring** — Drift detection and performance tracking with Evidently AI
 - **Visualization** — Interactive Streamlit dashboard with Plotly charts (availability timeline, station heatmap, peak hours, model performance)
-- **Prediction API** — FastAPI endpoint for real-time availability forecasts *(planned)*
+- **Prediction API** — FastAPI REST endpoint for real-time availability forecasts (`/predict`, `/stations`, `/anomalies`)
+- **Anomaly detection** — Rule-based (stuck stations) + Isolation Forest for identifying malfunctioning stations
 
 ### Model Performance
 
@@ -50,7 +51,7 @@ This project builds a continuous data pipeline that ingests high-frequency stati
 | 6 — Advanced Modeling | :white_check_mark: Done | LightGBM + XGBoost with Optuna tuning, SHAP analysis |
 | 7 — Monitoring & Drift | :white_check_mark: Done | Drift detection, Evidently AI reports, alerting |
 | 8 — Visualization | :white_check_mark: Done | Streamlit dashboard with Plotly charts |
-| 9 — Extensions | :construction: Planned | FastAPI endpoint, anomaly detection |
+| 9 — Extensions | :white_check_mark: Done | FastAPI prediction API, anomaly detection |
 
 ## Architecture
 
@@ -85,17 +86,18 @@ GitHub Actions (cron: */5 * * * *)
            |  -> split -> Parquet |
            +---------+-----------+
                      |
-        +------------+------------+
-        v            v            v
-   ML Models     Dashboard    Monitoring
-  (Phase 5-6)   (Phase 8)   (Phase 7+)
-        |
-        v
-  +---------------------+
-  | Naive | LR | LightGBM | XGBoost |
-  | evaluate -> metrics.json        |
-  | SHAP -> feature importance      |
-  +---------------------+
+        +-------+--------+--------+--------+
+        v       v        v        v        v
+   ML Models  Dashboard Monitoring  API   Anomaly
+  (Phase 5-6) (Phase 8) (Phase 7) (Ph.9) (Ph.9)
+        |                            |
+        v                            v
+  +---------------------+   +------------------+
+  | LightGBM | XGBoost  |   | FastAPI          |
+  | metrics.json         |   | /predict         |
+  | SHAP importance      |   | /stations        |
+  +---------------------+   | /anomalies       |
+                             +------------------+
 ```
 
 See [docs/analytics/README.md](./docs/analytics/README.md) for grain, ER/layer diagrams (Mermaid), and the data dictionary.
@@ -112,7 +114,8 @@ See [docs/analytics/README.md](./docs/analytics/README.md) for grain, ER/layer d
 | Interpretability | SHAP (TreeExplainer) |
 | Monitoring | Evidently AI, scipy (KS test) |
 | Visualization | Streamlit, Plotly, Tableau Public *(planned)* |
-| API | FastAPI *(planned)* |
+| API | FastAPI, Pydantic, uvicorn |
+| Anomaly Detection | scikit-learn (Isolation Forest), rule-based |
 
 ## Project Structure
 
@@ -135,14 +138,19 @@ See [docs/analytics/README.md](./docs/analytics/README.md) for grain, ER/layer d
 │   │   ├── data.py      # Pure data helpers (loading, filtering, aggregation)
 │   │   ├── app.py       # Multi-page entry point: streamlit run src/dashboard/app.py
 │   │   └── views/       # availability, heatmap, peak_hours, performance, drift_monitor
-│   └── api/             # FastAPI prediction endpoint (Phase 9)
-├── tests/               # 145+ unit tests (pytest, 96% coverage)
+│   ├── anomaly/         # Anomaly detection (stuck stations, Isolation Forest)
+│   │   └── detector.py  # detect_stuck_stations(), detect_statistical_anomalies()
+│   └── api/             # FastAPI prediction endpoint
+│       ├── main.py      # App factory: uvicorn src.api.main:app
+│       ├── routes.py    # /health, /stations, /predict, /anomalies
+│       └── schemas.py   # Pydantic request/response models
+├── tests/               # 200+ unit tests (pytest, 96% coverage)
 ├── notebooks/
 │   ├── 01_data_exploration.ipynb   # GBFS schema, station map (Folium)
 │   ├── 02_feature_analysis.ipynb   # Feature distributions, leakage check
 │   ├── 03_model_comparison.ipynb   # Baseline model comparison
 │   └── 04_advanced_models.ipynb    # LightGBM/XGBoost, SHAP analysis
-├── sql/                 # DDL migrations (001_ -> 005_)
+├── sql/                 # DDL migrations (001_ -> 006_)
 │   ├── 001_create_tables.sql       # raw_station_status, station_information
 │   ├── 002_create_indexes.sql      # Composite index for time-series
 │   ├── 003_analytics_layer.sql     # analytics.station_status_enriched/latest
@@ -201,6 +209,10 @@ python -m src.storage.data_quality --json
 
 # 5. Launch the interactive dashboard
 streamlit run src/dashboard/app.py
+
+# 6. Start the prediction API
+uvicorn src.api.main:app --reload --port 8000
+# API docs: http://localhost:8000/docs
 ```
 
 ### Data model and analytics layer (Phase 3)
@@ -334,8 +346,59 @@ streamlit run src/dashboard/app.py
 | Station Heatmap | Geographic scatter map (OpenStreetMap) with hour-of-day slider |
 | Peak Usage Hours | Weekday vs weekend grouped bar chart + weekday x hour heatmap |
 | Model Performance | Metrics comparison table, actual vs predicted scatter, error distribution, per-hour MAE, feature importance |
+| Drift Monitor | 3-layer drift monitoring: executive (drift gauge + rolling MAE), analytical (feature ranking by PSI), diagnostic (per-feature distribution overlay) |
 
 All data transformation logic lives in `src/dashboard/data.py` (pure functions, no Streamlit dependency) and is fully unit-tested. Caching is applied at the app layer via `@st.cache_data`.
+
+### Prediction API (Phase 9)
+
+A FastAPI REST endpoint for real-time bike availability predictions and anomaly detection:
+
+```bash
+# Start the API server
+uvicorn src.api.main:app --reload --port 8000
+
+# Interactive docs
+open http://localhost:8000/docs
+```
+
+**Endpoints:**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/health` | System status, model loaded, station count |
+| `GET` | `/stations` | List all active stations with metadata |
+| `GET` | `/predict?station_id=X` | Predict bikes available at t+15 min |
+| `POST` | `/predict/batch` | Batch prediction for multiple stations |
+| `GET` | `/anomalies` | Detect anomalous stations (stuck + statistical) |
+
+**Example:**
+
+```bash
+# Single prediction
+curl "http://localhost:8000/predict?station_id=123"
+
+# Batch prediction
+curl -X POST "http://localhost:8000/predict/batch" \
+  -H "Content-Type: application/json" \
+  -d '{"station_ids": ["123", "456", "789"]}'
+
+# Anomaly detection (custom thresholds)
+curl "http://localhost:8000/anomalies?stuck_hours=3&contamination=0.1"
+```
+
+### Anomaly detection (Phase 9)
+
+Two complementary approaches for identifying malfunctioning or unusual stations:
+
+| Method | Description | Use case |
+|--------|-------------|----------|
+| **Rule-based** | Flags stations with zero change in `num_bikes_available` for >2 hours | Detect stuck/offline stations |
+| **Isolation Forest** | Unsupervised outlier detection on station activity features | Identify unusual patterns vs fleet-wide norms |
+
+**Station activity features** used by Isolation Forest: `avg_bikes`, `std_bikes`, `zero_pct`, `change_rate`, `avg_docks`, `capacity`.
+
+Anomaly flags are stored in `analytics.anomalies` (schema in `sql/006_anomalies_table.sql`).
 
 ## Data Source
 
